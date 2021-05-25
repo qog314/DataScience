@@ -5,12 +5,12 @@ date: "5/18/2021"
 output: html_document
 ---
 
-```{r setup}
+```{r setup, results = FALSE}
 library(caret)
 ```
 
 First, I download both the training and testing data sets.
-```{r}
+```{r results=FALSE}
 
 download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv")
 download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv")
@@ -29,13 +29,16 @@ val <- training[-inTrain,]
 train <- train[,c(2, 8:11, 37:49, 60:68, 84:86, 102, 113:124, 151:160)]
 
 ```
-I try a bunch of different methods and compare the accuracy with the validation data set. 
-The most accurate method is "gbm" which is even more accurate (out-sample) than stacking several methods, probably because the accuracy for other methods is so much lower than gbm. 
+I try a bunch of different methods and compare the accuracy with the validation data set. Boostrap resampling is used in the training data set for cross validation. 
+The most accurate method is "rf" which is even more accurate (out-sample) than stacking several methods, probably because the accuracy for other methods is so much lower than rf. 
 ```{r cache=TRUE, results=FALSE}
-gbm <- train(classe ~ ., method = "gbm", data=train)
-lda <- train(classe ~ ., method="lda", data=train)
-mda <- train(classe ~ ., method="mda", data=train)
-rpart <- train(classe ~ ., method = "rpart", data=train)
+train_control <- trainControl(method="boot", number=100)
+
+gbm <- train(classe ~ ., method = "gbm", data=train, trControl = train_control)
+lda <- train(classe ~ ., method="lda", data=train, trControl = train_control)
+mda <- train(classe ~ ., method="mda", data=train, trControl = train_control)
+rpart <- train(classe ~ ., method = "rpart", data=train, trControl = train_control)
+rf <- train(classe ~ ., method="rf", ntree=5, data=train, trControl = train_control)
 ```
 
 ```{r cache=TRUE}
@@ -43,6 +46,10 @@ rpart <- train(classe ~ ., method = "rpart", data=train)
 predgbm <- predict(gbm, val)
 inConfgbm <- confusionMatrix(predict(gbm, train), as.factor(train$classe))$overall[1]
 outconfgbm <- confusionMatrix(predgbm, as.factor(val$classe))$overall[1]
+
+predrf <- predict(rf, val)
+confrf <- confusionMatrix(predrf, as.factor(val$classe))$overall[1]
+inconfrf <- confusionMatrix(predict(rf, train), as.factor(train$classe))$overall[1]
 
 predlda <- predict(lda, val)
 confLda <- confusionMatrix(predlda, as.factor(val$classe))$overall[1]
@@ -52,18 +59,19 @@ predmda <- predict(mda, val)
 confMda <- confusionMatrix(predmda, as.factor(val$classe))$overall[[1]]
 inconfmda <- confusionMatrix(predict(mda, train), as.factor(train$classe))$overall[1]
 
-
 predrpart <- predict(rpart, val)
 confRpart <- confusionMatrix(predrpart, as.factor(val$classe))$overall[1]
 inconfRpart <- confusionMatrix(predict(rpart, train), as.factor(train$classe))$overall[1]
 
-predDF <- data.frame(predgbm, predlda, predmda, predrpart, classe = val$classe)
-comboModFit <- train(classe ~ ., data = predDF, method = "rf")
+predDF <- data.frame(predgbm, predlda, predmda, predrpart, predrf, classe = val$classe)
+comboModFit <- train(classe ~ ., data = predDF, method = "rf", ntree=5)
 comboPred <- predict(comboModFit, predDF)
 inconfCombo <- confusionMatrix(comboPred, as.factor(predDF$classe))$overall[1]
 
 ```
 For GBM, the accuracy for in and out sample is `r round(inConfgbm, 3)` and `r round(outconfgbm, 3)`. 
+
+For, RF, the accuracy for in sample is `r round(inconfrf, 3)` and out sample accuracy is `r round(confrf, 3)`.
 
 For LDA, in sample accuracy is `r round(inconfLda, 3)` and out sample accuracy is `r round(confLda, 3)`.
 
@@ -71,9 +79,10 @@ For MDA, in sample accuracy is `r round(inconfmda, 3)` and out sample accuracy i
 
 for rpart, in sample accuracy is `r round(inconfRpart, 3)` and out sample accuracy is `r round(confRpart, 3)`.
 
-Using model stacking with all four algorithms, the in sample accuracy is `r round(inconfCombo, 3)`. We don't have the out sample accuracy for the stacked model because we don't have the true labels for the testing set. 
+Using model stacking with all five algorithms, the in sample accuracy is `r round(inconfCombo, 3)`. We don't have the out sample accuracy for the stacked model because we don't have the true labels for the testing set. 
 
-We'll use just GBM on the testing dataset.
+We'll use just RF on the testing dataset.
+
 ```{r}
-predict(gbm, testing)
+predict(rf, testing)
 ```

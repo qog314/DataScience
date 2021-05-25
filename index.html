@@ -187,15 +187,22 @@ val &lt;- training[-inTrain,]
 
 #get the raw values and skip the averages and summary stats
 train &lt;- train[,c(2, 8:11, 37:49, 60:68, 84:86, 102, 113:124, 151:160)]</code></pre>
-<p>I try a bunch of different methods and compare the accuracy with the validation data set. The most accurate method is “gbm” which is even more accurate (out-sample) than stacking several methods, probably because the accuracy for other methods is so much lower than gbm.</p>
-<pre class="r"><code>gbm &lt;- train(classe ~ ., method = &quot;gbm&quot;, data=train)
-lda &lt;- train(classe ~ ., method=&quot;lda&quot;, data=train)
-mda &lt;- train(classe ~ ., method=&quot;mda&quot;, data=train)
-rpart &lt;- train(classe ~ ., method = &quot;rpart&quot;, data=train)</code></pre>
+<p>I try a bunch of different methods and compare the accuracy with the validation data set. Boostrap resampling is used in the training data set for cross validation. The most accurate method is “rf” which is even more accurate (out-sample) than stacking several methods, probably because the accuracy for other methods is so much lower than rf.</p>
+<pre class="r"><code>train_control &lt;- trainControl(method=&quot;boot&quot;, number=100)
+
+gbm &lt;- train(classe ~ ., method = &quot;gbm&quot;, data=train, trControl = train_control)
+lda &lt;- train(classe ~ ., method=&quot;lda&quot;, data=train, trControl = train_control)
+mda &lt;- train(classe ~ ., method=&quot;mda&quot;, data=train, trControl = train_control)
+rpart &lt;- train(classe ~ ., method = &quot;rpart&quot;, data=train, trControl = train_control)
+rf &lt;- train(classe ~ ., method=&quot;rf&quot;, ntree=5, data=train, trControl = train_control)</code></pre>
 <pre class="r"><code>#try a bunch of different methods to see which is the most accurate for the validation dataset
 predgbm &lt;- predict(gbm, val)
 inConfgbm &lt;- confusionMatrix(predict(gbm, train), as.factor(train$classe))$overall[1]
 outconfgbm &lt;- confusionMatrix(predgbm, as.factor(val$classe))$overall[1]
+
+predrf &lt;- predict(rf, val)
+confrf &lt;- confusionMatrix(predrf, as.factor(val$classe))$overall[1]
+inconfrf &lt;- confusionMatrix(predict(rf, train), as.factor(train$classe))$overall[1]
 
 predlda &lt;- predict(lda, val)
 confLda &lt;- confusionMatrix(predlda, as.factor(val$classe))$overall[1]
@@ -205,22 +212,22 @@ predmda &lt;- predict(mda, val)
 confMda &lt;- confusionMatrix(predmda, as.factor(val$classe))$overall[[1]]
 inconfmda &lt;- confusionMatrix(predict(mda, train), as.factor(train$classe))$overall[1]
 
-
 predrpart &lt;- predict(rpart, val)
 confRpart &lt;- confusionMatrix(predrpart, as.factor(val$classe))$overall[1]
 inconfRpart &lt;- confusionMatrix(predict(rpart, train), as.factor(train$classe))$overall[1]
 
-predDF &lt;- data.frame(predgbm, predlda, predmda, predrpart, classe = val$classe)
-comboModFit &lt;- train(classe ~ ., data = predDF, method = &quot;rf&quot;)
+predDF &lt;- data.frame(predgbm, predlda, predmda, predrpart, predrf, classe = val$classe)
+comboModFit &lt;- train(classe ~ ., data = predDF, method = &quot;rf&quot;, ntree=5)
 comboPred &lt;- predict(comboModFit, predDF)
 inconfCombo &lt;- confusionMatrix(comboPred, as.factor(predDF$classe))$overall[1]</code></pre>
-<p>For GBM, the accuracy for in and out sample is 0.975 and 0.956.</p>
+<p>For GBM, the accuracy for in and out sample is 0.974 and 0.958.</p>
+<p>For, RF, the accuracy for in sample is 0.998 and out sample accuracy is 0.978.</p>
 <p>For LDA, in sample accuracy is 0.74 and out sample accuracy is 0.727.</p>
-<p>For MDA, in sample accuracy is 0.773 and out sample accuracy is 0.769.</p>
+<p>For MDA, in sample accuracy is 0.756 and out sample accuracy is 0.75.</p>
 <p>for rpart, in sample accuracy is 0.495 and out sample accuracy is 0.498.</p>
-<p>Using model stacking with all four algorithms, the in sample accuracy is 0.959. We don’t have the out sample accuracy for the stacked model because we don’t have the true labels for the testing set.</p>
-<p>We’ll use just GBM on the testing dataset.</p>
-<pre class="r"><code>predict(gbm, testing)</code></pre>
+<p>Using model stacking with all five algorithms, the in sample accuracy is 0.984. We don’t have the out sample accuracy for the stacked model because we don’t have the true labels for the testing set.</p>
+<p>We’ll use just RF on the testing dataset.</p>
+<pre class="r"><code>predict(rf, testing)</code></pre>
 <pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
 ## Levels: A B C D E</code></pre>
 
